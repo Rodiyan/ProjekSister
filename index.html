@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="id">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Monitoring — Suhu / LDR / Alerts</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+        --accent: #06b6d4;
+        --muted: #94a3b8;
+        --danger: #ef4444;
+        --success: #10b981;
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+        background: linear-gradient(180deg, #071023 0%, #091127 100%);
+        color: #e6eef8;
+        min-height: 100vh;
+        padding: 28px;
+      }
+
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 20px;
+      }
+
+      .card {
+        background: var(--card);
+        border-radius: 12px;
+        padding: 18px;
+        box-shadow: 0 8px 24px rgba(2, 6, 23, .6);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px
+      }
+
+      h1 {
+        font-size: 18px;
+        margin: 0
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 13px
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px
+      }
+
+      .panel {
+        padding: 12px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.01);
+        min-height: 110px
+      }
+
+      .label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px
+      }
+
+      .reading {
+        font-size: 40px;
+        font-weight: 700
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 6px
+      }
+
+      .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center
+      }
+
+      input[type="number"],
+      input[type="text"] {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        padding: 8px;
+        border-radius: 8px;
+        color: inherit
+      }
+
+      button.btn {
+        background: var(--accent);
+        color: #022226;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-weight: 700
+      }
+
+      button.ghost {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        color: var(--muted)
+      }
+
+      .alerts-list {
+        max-height: 560px;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 6px
+      }
+
+      .alert-item {
+        background: rgba(255, 255, 255, 0.02);
+        padding: 10px;
+        border-radius: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-left: 4px solid var(--danger)
+      }
+
+      .alert-left {
+        display: flex;
+        flex-direction: column;
+        gap: 6px
+      }
+
+      .alert-right {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-end
+      }
+
+      .badge {
+        padding: 6px 8px;
+        border-radius: 999px;
+        font-weight: 700
+      }
+
+      .badge.danger {
+        background: var(--danger);
+        color: white
+      }
+
+      .evidence {
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 8px;
+        border-radius: 8px;
+        color: var(--muted);
+        white-space: pre-wrap;
+        margin-top: 8px
+      }
+
+      .small {
+        font-size: 13px;
+        color: var(--muted)
+      }
+
+      footer {
+        margin-top: 12px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px
+      }
+
+      @media (max-width:980px) {
+        .wrap {
+          grid-template-columns: 1fr
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <!-- MAIN -->
+      <div class="card">
+        <header>
+          <div>
+            <h1>Monitoring Sensor</h1>
+            <div class="status" id="connStatus">Menghubungkan...</div>
+          </div>
+          <div class="controls">
+            <div class="small">Last update: <span id="lastUpdate">—</span></div>
+            <button class="btn" id="manualBtn">Periksa</button>
+          </div>
+        </header>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="label">Suhu (°C)</div>
+            <div id="tempVal" class="reading">--</div>
+            <div id="tempMeta" class="meta">—</div>
+          </div>
+
+          <div class="panel">
+            <div class="label">Kelembapan (%)</div>
+            <div id="humiVal" class="reading">--</div>
+            <div id="humiMeta" class="meta">—</div>
+          </div>
+
+          <div class="panel">
+            <div class="label">LDR</div>
+            <div id="ldrVal" class="reading">--</div>
+            <div id="ldrMeta" class="meta">—</div>
+          </div>
+
+          <div class="panel">
+            <div class="label">Pengaturan Alerts</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+              <input id="thresholdInput" type="number" value="35" step="0.1" style="width:110px">
+              <div class="small">Threshold Suhu °C</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+              <input id="ldrThresholdInput" type="number" value="600" step="1" style="width:110px">
+              <div class="small">Threshold LDR (<=)< /div>
+              </div>
+              <div style="margin-top:12px;display:flex;gap:8px">
+                <button id="toggleAlerts" class="btn">Aktifkan Alerts</button>
+                <button id="saveThresholdBtn" class="btn">Simpan Threshold</button>
+                <button id="exportBtn" class="btn ghost">Export Alerts</button>
+              </div>
+              <div style="margin-top:10px" class="small">Email/Telegram dikirim dari ESP32 — dashboard hanya menampilkan
+                log & bukti.</div>
+            </div>
+          </div>
+
+          <div style="margin-top:14px">
+            <div class="label">Live Log / Event</div>
+            <div id="liveLog" class="evidence">Belum ada data.</div>
+          </div>
+
+          <footer>Dashboard — Decrypt AES-CBC di browser (WebCrypto)</footer>
+        </div>
+
+        <!-- ALERTS -->
+        <div class="card">
+          <header style="align-items:center;">
+            <div>
+              <h1 style="font-size:16px;margin:0">Alerts & Bukti</h1>
+              <div class="small">Menampilkan alerts dari Firebase (/Monitoring/alerts)</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <div class="small">Total: <span id="totalAlerts">0</span></div>
+            </div>
+          </header>
+
+          <div class="alerts-list" id="alertsList">
+            <!-- dynamic -->
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:12px;justify-content:space-between;align-items:center">
+            <div class="small" id="alertsInfo">—</div>
+            <div>
+              <button id="clearAllBtn" class="btn ghost">Hapus Semua (Firebase)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        /* ==========================
+           CONFIG — sesuaikan bila perlu
+           ========================== */
+        const firebaseDatabaseUrl = "https://sister-34e9b-default-rtdb.firebaseio.com"; // tanpa trailing slash
+        const monitoringPath = "/Monitoring.json";
+        const alertsPath = "/Monitoring/alerts.json";
+        const alertItemBasePath = "/Monitoring/alerts/"; // + <key> + '.json'
+        const thresholdPath = "/Monitoring/threshold.json"; // NEW
+
+        const AES_KEY_HEX = "2134ab45916fbe01495123c9dc76a8881274ff0091106584bc773114a355c989"; // must match ESP32
+        const POLL_MS = 1500; // interval untuk polling (ms)
+
+        let alertsCache = {}; // key -> alert obj
+        let lastDisplayed = { temp: null, humi: null, ldr: null, ts: null };
+
+        /* ==========================
+           HELPERS
+           ========================== */
+        function b64ToUint8Array(b64) {
+          const bin = atob(b64);
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          return arr;
+        }
+
+        function hexToUint8Array(hex) {
+          hex = hex.replace(/\s+/g, '');
+          const arr = new Uint8Array(hex.length / 2);
+          for (let i = 0; i < arr.length; i++) {
+            arr[i] = parseInt(hex.substr(i * 2, 2), 16);
+          }
+          return arr;
+        }
+
+        function formatEpoch(ts) {
+          if (!ts) return '—';
+          // try to parse ts as epoch seconds OR if it's string like "2025-12-03 12:00:00" return as-is
+          if (typeof ts === 'number') {
+            const d = new Date(ts * 1000);
+            return d.toLocaleString();
+          }
+          if (/^\d+$/.test(String(ts))) {
+            const d = new Date(parseInt(ts) * 1000);
+            return d.toLocaleString();
+          }
+          return String(ts);
+        }
+
+        /* PKCS7 unpad */
+        function pkcs7Unpad(buf) {
+          if (!buf || buf.length === 0) return buf;
+          const pad = buf[buf.length - 1];
+          if (pad <= 0 || pad > 16) return buf;
+          return buf.slice(0, buf.length - pad);
+        }
+
+        /* AES-CBC decrypt using WebCrypto. Returns string or null on failure */
+        async function aesCbcDecryptBase64(iv_b64, ct_b64, keyHex) {
+          try {
+            const keyBytes = hexToUint8Array(keyHex);
+            const iv = b64ToUint8Array(iv_b64);
+            const ct = b64ToUint8Array(ct_b64);
+
+            const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["decrypt"]);
+            const plainBuf = await crypto.subtle.decrypt({ name: "AES-CBC", iv: iv }, cryptoKey, ct);
+            let plain = new Uint8Array(plainBuf);
+            plain = pkcs7Unpad(plain);
+            return new TextDecoder().decode(plain);
+          } catch (e) {
+            console.warn("Decrypt failed:", e);
+            return null;
+          }
+        }
+
+        /* Safe fetch JSON */
+        async function fetchJson(url, options) {
+          try {
+            const res = await fetch(url, options);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return await res.json();
+          } catch (e) { console.warn("fetchJson error", url, e); return null; }
+        }
+
+        /* Patch (PUT-like) to Monitoring node */
+        async function firebasePatch(bodyObj) {
+          const url = firebaseDatabaseUrl + monitoringPath;
+          const body = JSON.stringify(bodyObj);
+          try {
+            const res = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body });
+            if (!res.ok) throw new Error('Patch failed ' + res.status);
+            return true;
+          } catch (e) { console.error(e); return false; }
+        }
+
+        /* Delete specific alert by key */
+        async function deleteAlert(key) {
+          if (!confirm("Hapus alert ini dari Firebase?")) return false;
+          const url = firebaseDatabaseUrl + alertItemBasePath + encodeURIComponent(key) + ".json";
+          try {
+            const res = await fetch(url, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete failed ' + res.status);
+            // local refresh
+            delete alertsCache[key];
+            renderAlerts();
+            return true;
+          } catch (e) { console.error(e); alert("Gagal hapus: " + e); return false; }
+        }
+
+        /* Delete all alerts (careful) */
+        async function deleteAllAlerts() {
+          if (!confirm("Hapus SEMUA alerts dari Firebase?")) return;
+          const url = firebaseDatabaseUrl + alertsPath;
+          try {
+            const res = await fetch(url, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete all failed ' + res.status);
+            alertsCache = {};
+            renderAlerts();
+            showToast("Semua alerts dihapus");
+          } catch (e) { console.error(e); showToast("Gagal menghapus alerts", true); }
+        }
+
+        /* Download JSON */
+        function downloadJson(obj, filename = 'alerts.json') {
+          const data = JSON.stringify(obj, null, 2);
+          const blob = new Blob([data], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = filename; a.click();
+          URL.revokeObjectURL(url);
+        }
+
+        /* Toast */
+        let toastTimer = null;
+        function showToast(msg, error = false) {
+          let el = document.getElementById('__toast');
+          if (el) el.remove();
+          el = document.createElement('div');
+          el.id = '__toast';
+          el.style.position = 'fixed'; el.style.right = '20px'; el.style.bottom = '20px';
+          el.style.padding = '12px 16px'; el.style.borderRadius = '10px';
+          el.style.background = error ? 'rgba(239,68,68,0.95)' : 'rgba(6,182,212,0.95)';
+          el.style.color = '#021825'; el.style.fontWeight = '700';
+          el.textContent = msg;
+          document.body.appendChild(el);
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => { el.remove(); }, 4500);
+        }
+
+        /* ==========================
+           UI: Render alerts
+           ========================== */
+        function renderAlerts() {
+          const container = document.getElementById('alertsList');
+          container.innerHTML = '';
+          const keys = Object.keys(alertsCache || {}).sort((a, b) => (alertsCache[b].ts || 0) - (alertsCache[a].ts || 0));
+          keys.forEach(key => {
+            const a = alertsCache[key];
+            const wrap = document.createElement('div'); wrap.className = 'alert-item';
+            const left = document.createElement('div'); left.className = 'alert-left';
+            const right = document.createElement('div'); right.className = 'alert-right';
+
+            const title = document.createElement('div'); title.innerHTML = `<strong>${a.reason || a.type || 'Alert'}</strong>`;
+            const meta = document.createElement('div'); meta.className = 'small'; meta.textContent = formatEpoch(a.ts || a.ts_string || 0) + (typeof a.value !== 'undefined' ? ` — value: ${a.value}` : '');
+
+            left.appendChild(title); left.appendChild(meta);
+
+            const btnShow = document.createElement('button'); btnShow.className = 'btn ghost'; btnShow.textContent = 'Bukti';
+            btnShow.onclick = () => {
+              const evidenceText = [
+                `Type : ${a.type || '—'}`,
+                `Reason: ${a.reason || '—'}`,
+                `Value : ${a.value || '—'}`,
+                `TS    : ${formatEpoch(a.ts || a.ts_string || 0)} (${a.ts || a.ts_string || 0})`,
+                '',
+                'Encrypted fields (raw):',
+                `encrypted_temperature: ${a.encrypted_temperature || '—'}`,
+                `iv_temperature       : ${a.iv_temperature || '—'}`,
+                `encrypted_humidity   : ${a.encrypted_humidity || '—'}`,
+                `iv_humidity          : ${a.iv_humidity || '—'}`,
+                `encrypted_ldr        : ${a.encrypted_ldr || '—'}`,
+                `iv_ldr               : ${a.iv_ldr || '—'}`,
+              ].join('\n');
+              alert(evidenceText);
+            };
+
+            const btnDel = document.createElement('button'); btnDel.className = 'btn'; btnDel.style.background = 'var(--danger)'; btnDel.textContent = 'Hapus';
+            btnDel.onclick = () => deleteAlert(key);
+
+            right.appendChild(btnShow); right.appendChild(btnDel);
+
+            wrap.appendChild(left); wrap.appendChild(right);
+
+            // evidence snippet
+            const ev = document.createElement('div'); ev.className = 'evidence';
+            ev.textContent = `Encrypted: ${(a.encrypted_temperature || a.encrypted_ldr || '—').toString().substr(0, 80)}${(a.encrypted_temperature || a.encrypted_ldr) ? '...' : ''}`;
+            container.appendChild(wrap); container.appendChild(ev);
+          });
+
+          document.getElementById('totalAlerts').textContent = keys.length;
+          document.getElementById('alertsInfo').textContent = keys.length ? `Menampilkan ${keys.length} alert terbaru` : 'Belum ada alert';
+        }
+
+        /* ==========================
+           POLLING: data & alerts
+           ========================== */
+
+        let pollingHandle = null;
+        let alertsHandle = null;
+
+        async function pollMonitoring() {
+          const url = firebaseDatabaseUrl + monitoringPath;
+          const data = await fetchJson(url);
+          if (!data) return;
+
+          document.getElementById('connStatus').textContent = 'Terhubung ke Firebase';
+
+          // try decrypt (may be null if fails)
+          const ivT = data.iv_temperature || data.iv_temp || null;
+          const ctT = data.encrypted_temperature || data.ct_temperature || null;
+          const ivH = data.iv_humidity || data.iv_hum || null;
+          const ctH = data.encrypted_humidity || data.ct_humidity || null;
+          const ivL = data.iv_ldr || data.iv_LDR || null;
+          const ctL = data.encrypted_ldr || data.ct_ldr || null;
+
+          // timestamp
+          const ts = data.timestamp || Math.floor(Date.now() / 1000);
+
+          // decrypt in parallel
+          const [tPlain, hPlain, lPlain] = await Promise.all([
+            (ivT && ctT) ? aesCbcDecryptBase64(ivT, ctT, AES_KEY_HEX) : null,
+            (ivH && ctH) ? aesCbcDecryptBase64(ivH, ctH, AES_KEY_HEX) : null,
+            (ivL && ctL) ? aesCbcDecryptBase64(ivL, ctL, AES_KEY_HEX) : null,
+          ]);
+
+          // update UI only if changed (prevent flicker)
+          if (tPlain !== lastDisplayed.temp) {
+            document.getElementById('tempVal').textContent = tPlain ?? '--';
+            document.getElementById('tempMeta').textContent = tPlain ? `Raw: ${ctT ? ctT.substr(0, 20) + '...' : '—'} | ts: ${ts}` : 'Tidak dapat didekripsi';
+            lastDisplayed.temp = tPlain;
+          }
+          if (hPlain !== lastDisplayed.humi) {
+            document.getElementById('humiVal').textContent = hPlain ?? '--';
+            document.getElementById('humiMeta').textContent = hPlain ? `Raw: ${ctH ? ctH.substr(0, 20) + '...' : '—'} | ts: ${ts}` : 'Tidak dapat didekripsi';
+            lastDisplayed.humi = hPlain;
+          }
+          if (lPlain !== lastDisplayed.ldr) {
+            document.getElementById('ldrVal').textContent = lPlain ?? '--';
+            document.getElementById('ldrMeta').textContent = lPlain ? `Raw: ${ctL ? ctL.substr(0, 20) + '...' : '—'} | ts: ${ts}` : 'Tidak dapat didekripsi';
+            lastDisplayed.ldr = lPlain;
+          }
+
+          // live log always update (small effect only)
+          document.getElementById('liveLog').textContent =
+            `Suhu: ${tPlain ?? '—'} °C\nKelembapan: ${hPlain ?? '—'} %\nLDR: ${lPlain ?? '—'}\nTimestamp: ${formatEpoch(ts)}`;
+
+          document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        async function pollAlerts() {
+          const url = firebaseDatabaseUrl + alertsPath;
+          const data = await fetchJson(url);
+          if (!data) {
+            alertsCache = {};
+            renderAlerts();
+            return;
+          }
+          // data is object keyed by push keys
+          // merge into alertsCache and render
+          alertsCache = data;
+          renderAlerts();
+        }
+
+        /* ==========================
+           Threshold: read & write
+           ========================== */
+        async function fetchThresholdsFromFirebase() {
+          const url = firebaseDatabaseUrl + thresholdPath;
+          const data = await fetchJson(url);
+          if (!data) {
+            // nada: keep defaults shown
+            return;
+          }
+          if (typeof data.temperature !== 'undefined') {
+            document.getElementById('thresholdInput').value = data.temperature;
+          }
+          if (typeof data.ldr !== 'undefined') {
+            document.getElementById('ldrThresholdInput').value = data.ldr;
+          }
+        }
+
+        /* Start polling */
+        function startPolling() {
+          if (pollingHandle) clearInterval(pollingHandle);
+          pollMonitoring();
+          pollAlerts();
+          fetchThresholdsFromFirebase();
+          pollingHandle = setInterval(pollMonitoring, POLL_MS);
+          alertsHandle = setInterval(pollAlerts, POLL_MS * 2);
+          // refresh thresholds periodically (every 10s)
+          setInterval(fetchThresholdsFromFirebase, 10000);
+        }
+
+        /* ==========================
+           AES ENCRYPT (NEW)
+           ========================== */
+
+        function uint8ToB64(arr) {
+          return btoa(String.fromCharCode(...arr));
+        }
+
+        async function aesEncrypt(text, keyHex) {
+          const keyBytes = hexToUint8Array(keyHex);
+
+          const cryptoKey = await crypto.subtle.importKey(
+            "raw",
+            keyBytes,
+            { name: "AES-CBC" },
+            false,
+            ["encrypt"]
+          );
+
+          const iv = crypto.getRandomValues(new Uint8Array(16));
+          const data = new TextEncoder().encode(text);
+
+          const encrypted = await crypto.subtle.encrypt(
+            { name: "AES-CBC", iv },
+            cryptoKey,
+            data
+          );
+
+          return {
+            iv_b64: uint8ToB64(iv),
+            ct_b64: uint8ToB64(new Uint8Array(encrypted))
+          };
+        }
+
+
+        /* ==========================
+           Hooks: UI interactions
+           ========================== */
+        document.getElementById('manualBtn').addEventListener('click', () => {
+          pollMonitoring();
+          pollAlerts();
+          fetchThresholdsFromFirebase();
+          showToast('Permintaan manual dipicu');
+        });
+
+        let alertsEnabled = false;
+        document.getElementById('toggleAlerts').addEventListener('click', (e) => {
+          alertsEnabled = !alertsEnabled;
+          e.target.textContent = alertsEnabled ? 'Alerts: ON' : 'Aktifkan Alerts';
+          e.target.style.background = alertsEnabled ? 'var(--success)' : '';
+          showToast(alertsEnabled ? 'Alerts diaktifkan' : 'Alerts dinonaktifkan');
+        });
+
+        document.getElementById('saveThresholdBtn').addEventListener('click', async () => {
+          const tempTh = document.getElementById('thresholdInput').value;
+          const ldrTh = document.getElementById('ldrThresholdInput').value;
+
+          if (!tempTh || !ldrTh) {
+            showToast("Isi dulu threshold temperature & ldr", true);
+            return;
+          }
+
+          // 🔐 Enkripsi nilai threshold
+          const encTemp = await aesEncrypt(String(tempTh), AES_KEY_HEX);
+          const encLdr = await aesEncrypt(String(ldrTh), AES_KEY_HEX);
+
+          // 🔥 Patch: Hanya simpan encrypted + hapus plaintext
+          const body = {
+            encrypted_threshold_temperature: encTemp.ct_b64,
+            iv_threshold_temperature: encTemp.iv_b64,
+
+            encrypted_threshold_ldr: encLdr.ct_b64,
+            iv_threshold_ldr: encLdr.iv_b64,
+
+            // ❌ Hapus field versi plaintext dari Firebase
+            temperature: null,
+            ldr: null
+          };
+
+          const url = firebaseDatabaseUrl + thresholdPath;
+
+          try {
+            const res = await fetch(url, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+
+            if (res.ok) {
+              showToast("Threshold terenkripsi disimpan & versi plaintext DIHAPUS!");
+            } else {
+              showToast("Gagal update threshold terenkripsi", true);
+            }
+          } catch (e) {
+            showToast("Error koneksi", true);
+          }
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', () => {
+          downloadJson(alertsCache, 'alerts_export.json');
+          showToast('Export JSON siap');
+        });
+
+        document.getElementById('clearAllBtn').addEventListener('click', () => {
+          deleteAllAlerts();
+        });
+
+        /* ==========================
+           Init
+           ========================== */
+        startPolling();
+        showToast('Dashboard siap', false);
+      </script>
+  </body>
+
+</html>

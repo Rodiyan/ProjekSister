@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  web:
+    container_name: projek-firebase-container
+    image: projek-firebase
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped
