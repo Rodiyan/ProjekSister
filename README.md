@@ -1,4 +1,4 @@
-# Projek Sistem Terdistribusi : Proyek EMD (Environment Monitoring Device) Berbasis Mikrokontroller ESP32
+# Projek Sistem Terdistribusi : Projek EMD (Environment Monitoring Device) Berbasis Mikrokontroller ESP32
 ## Dosen Pengampu Matakuliah : Hendra Kurniawan, S.Kom., M.Sc.Eng., Ph.D
 ## Anggota Kelompok : 
 1. Oktaviandra Wahyu Ramadhan 2301020043
